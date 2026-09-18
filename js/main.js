@@ -7,6 +7,7 @@ import {
   computeEqualSplits, computePercentSplits,
 } from './balances.js';
 import { toCsv, parseCsv } from './csv.js';
+import { createShareOffer, createJoinAnswer, completeShare } from './sync.js';
 
 const state = loadState();
 let currentTab = 'expenses';
@@ -26,6 +27,7 @@ const modalGroup = el('modal-group');
 const modalExpense = el('modal-expense');
 const modalExpenseDetail = el('modal-expense-detail');
 const modalSettings = el('modal-settings');
+const modalSync = el('modal-sync');
 
 function persist() {
   saveState(state);
@@ -926,6 +928,164 @@ el('import-expenses-csv').addEventListener('change', async (e) => {
   }
 });
 
+// ---------- Peer-to-peer sync (WebRTC, no server) ----------
+
+let sharePc = null;
+let shareChannel = null;
+let joinPc = null;
+let joinChannel = null;
+let pendingImportPayload = null;
+
+function setShareStatus(msg) { el('sync-share-status').textContent = msg; }
+function setJoinStatus(msg) { el('sync-join-status').textContent = msg; }
+
+function extractSyncCode(raw) {
+  const trimmed = (raw || '').trim();
+  try {
+    const url = new URL(trimmed);
+    const joinParam = url.searchParams.get('join');
+    if (joinParam) return joinParam;
+  } catch {
+    // not a URL — treat the whole thing as a raw code
+  }
+  return trimmed;
+}
+
+function copyFieldValue(id) {
+  const field = el(id);
+  field.select();
+  navigator.clipboard?.writeText(field.value).catch(() => {});
+}
+
+el('btn-sync').addEventListener('click', () => modalSync.showModal());
+el('btn-copy-share-link').addEventListener('click', () => copyFieldValue('sync-share-link'));
+el('btn-copy-share-code').addEventListener('click', () => copyFieldValue('sync-share-code'));
+el('btn-copy-join-reply').addEventListener('click', () => copyFieldValue('sync-join-reply-code'));
+
+el('btn-sync-start-share').addEventListener('click', async () => {
+  setShareStatus('Creating offer...');
+  el('btn-sync-send-data').hidden = true;
+  try {
+    if (sharePc) sharePc.close();
+    const { pc, channel, code } = await createShareOffer();
+    sharePc = pc;
+    shareChannel = channel;
+
+    const baseUrl = location.href.split(/[?#]/)[0];
+    el('sync-share-link').value = `${baseUrl}?join=${code}`;
+    el('sync-share-code').value = code;
+    el('sync-share-link-box').hidden = false;
+    el('sync-share-reply-box').hidden = false;
+    setShareStatus("Share the link or code above. Once they send back a reply code, paste it below and click Connect.");
+
+    pc.addEventListener('connectionstatechange', () => {
+      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        setShareStatus(`Connection ${pc.connectionState}. They may be behind a network that blocks direct peer connections.`);
+      }
+    });
+    channel.addEventListener('open', () => {
+      setShareStatus('Connected.');
+      el('btn-sync-send-data').hidden = false;
+    });
+    channel.addEventListener('close', () => setShareStatus('Disconnected.'));
+  } catch (err) {
+    setShareStatus(`Could not start sharing: ${err.message}`);
+    console.error(err);
+  }
+});
+
+el('btn-sync-finish-share').addEventListener('click', async () => {
+  if (!sharePc) return;
+  const code = extractSyncCode(el('sync-share-reply-input').value);
+  if (!code) return;
+  try {
+    setShareStatus('Connecting...');
+    await completeShare(sharePc, code);
+  } catch (err) {
+    setShareStatus(`Could not connect: ${err.message}`);
+    console.error(err);
+  }
+});
+
+el('btn-sync-send-data').addEventListener('click', () => {
+  if (!shareChannel || shareChannel.readyState !== 'open') return;
+  shareChannel.send(JSON.stringify(state));
+  setShareStatus('Sent your data to them.');
+});
+
+el('btn-sync-generate-reply').addEventListener('click', async () => {
+  const code = extractSyncCode(el('sync-join-input').value);
+  if (!code) { setJoinStatus('Paste a code or link first.'); return; }
+  try {
+    setJoinStatus('Creating reply...');
+    if (joinPc) joinPc.close();
+    const { pc, code: replyCode } = await createJoinAnswer(code);
+    joinPc = pc;
+    el('sync-join-reply-code').value = replyCode;
+    el('sync-join-reply-box').hidden = false;
+    setJoinStatus('Send the reply code back to them, then wait here for their data.');
+
+    pc.addEventListener('connectionstatechange', () => {
+      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        setJoinStatus(`Connection ${pc.connectionState}. You may be behind a network that blocks direct peer connections.`);
+      }
+    });
+    pc.addEventListener('datachannel', (event) => {
+      joinChannel = event.channel;
+      joinChannel.addEventListener('open', () => setJoinStatus('Connected. Waiting for their data...'));
+      joinChannel.addEventListener('message', (msgEvent) => {
+        try {
+          const payload = JSON.parse(msgEvent.data);
+          if (!Array.isArray(payload.groups)) throw new Error('Unexpected data shape');
+          pendingImportPayload = payload;
+          const expenseCount = payload.groups.reduce((s, g) => s + (g.expenses ? g.expenses.length : 0), 0);
+          el('sync-import-summary').textContent = `Received ${payload.groups.length} group(s), ${expenseCount} expense(s).`;
+          el('sync-import-box').hidden = false;
+          setJoinStatus('Data received — choose how to import it below.');
+        } catch (err) {
+          setJoinStatus('Received something unexpected from them.');
+          console.error(err);
+        }
+      });
+    });
+  } catch (err) {
+    setJoinStatus(`Could not create a reply: ${err.message}`);
+    console.error(err);
+  }
+});
+
+el('btn-sync-import').addEventListener('click', () => {
+  if (!pendingImportPayload) return;
+  const mode = document.querySelector('input[name="sync-import-mode"]:checked').value;
+
+  if (mode === 'replace') {
+    if (!confirm('Replace ALL your data with theirs? This cannot be undone.')) return;
+    Object.assign(state, pendingImportPayload);
+    state.activeGroupId = state.groups[0]?.id || null;
+    setJoinStatus('Replaced your data.');
+  } else {
+    let added = 0;
+    pendingImportPayload.groups.forEach((g) => {
+      if (!state.groups.some((existing) => existing.id === g.id)) {
+        state.groups.push(g);
+        added += 1;
+      }
+    });
+    setJoinStatus(`Merged. Added ${added} new group(s).`);
+  }
+
+  persist();
+  render();
+  pendingImportPayload = null;
+  el('sync-import-box').hidden = true;
+});
+
+el('btn-sync-discard').addEventListener('click', () => {
+  pendingImportPayload = null;
+  el('sync-import-box').hidden = true;
+  setJoinStatus('Discarded.');
+});
+
 // ---------- Dialog close buttons ----------
 
 document.querySelectorAll('[data-close-dialog]').forEach((btn) => {
@@ -939,6 +1099,12 @@ if (!state.activeGroupId && state.groups.length > 0) {
 }
 
 render();
+
+const incomingJoinCode = new URLSearchParams(location.search).get('join');
+if (incomingJoinCode) {
+  el('sync-join-input').value = incomingJoinCode;
+  modalSync.showModal();
+}
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
