@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>SplitLite</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icons/icon.svg" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <img src="icons/icon.svg" alt="" class="brand-mark" />
+        <h1>SplitLite</h1>
+      </div>
+      <div class="topbar-controls">
+        <select id="group-select" aria-label="Active group"></select>
+        <button id="btn-new-group" class="btn btn-primary">+ Group</button>
+        <button id="btn-settings" class="btn btn-icon" aria-label="Settings" title="Settings">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section id="empty-state" class="empty-state" hidden>
+        <h2>No groups yet</h2>
+        <p>Create a group and add members to start splitting expenses.</p>
+        <button id="btn-empty-new-group" class="btn btn-primary">Create your first group</button>
+      </section>
+
+      <section id="group-view" hidden>
+        <nav class="tabs" role="tablist">
+          <button class="tab active" data-tab="expenses" role="tab">Expenses</button>
+          <button class="tab" data-tab="balances" role="tab">Balances</button>
+          <button class="tab" data-tab="members" role="tab">Members</button>
+        </nav>
+
+        <div id="tab-expenses" class="tab-panel">
+          <div class="panel-header">
+            <h2 id="group-name-heading"></h2>
+            <button id="btn-add-expense" class="btn btn-primary">+ Add expense</button>
+          </div>
+          <div id="expense-list" class="stack"></div>
+        </div>
+
+        <div id="tab-balances" class="tab-panel" hidden>
+          <div id="balances-content" class="stack"></div>
+        </div>
+
+        <div id="tab-members" class="tab-panel" hidden>
+          <div class="panel-header">
+            <h2>Members</h2>
+          </div>
+          <form id="form-add-member" class="inline-form">
+            <input type="text" id="new-member-name" placeholder="Member name" required maxlength="40" />
+            <button type="submit" class="btn btn-secondary">Add member</button>
+          </form>
+          <div id="member-list" class="stack"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="modal-group">
+    <form id="form-group" method="dialog">
+      <h2>New group</h2>
+      <label>Group name
+        <input type="text" id="group-name" required maxlength="40" placeholder="e.g. Goa Trip" />
+      </label>
+      <label>Base currency
+        <select id="group-currency"></select>
+      </label>
+      <label>Members (one per line)
+        <textarea id="group-members" rows="4" placeholder="Alex&#10;Priya&#10;Sam"></textarea>
+      </label>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-secondary" data-close-dialog>Cancel</button>
+        <button type="submit" class="btn btn-primary">Create group</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="modal-expense">
+    <form id="form-expense" method="dialog">
+      <h2>Add expense</h2>
+      <p class="field-error" id="expense-form-error" hidden></p>
+      <label>Description
+        <input type="text" id="expense-description" required maxlength="60" placeholder="e.g. Dinner" />
+      </label>
+      <div class="field-row">
+        <label>Amount
+          <input type="number" id="expense-amount" required min="0.01" step="0.01" placeholder="0.00" />
+        </label>
+        <label>Currency
+          <select id="expense-currency"></select>
+        </label>
+      </div>
+      <div class="field-row">
+        <label>Paid by
+          <select id="expense-paid-by"></select>
+        </label>
+        <label>Date
+          <input type="date" id="expense-date" required />
+        </label>
+      </div>
+      <p id="expense-conversion-note" class="hint"></p>
+
+      <fieldset>
+        <legend>Split</legend>
+        <div class="split-mode-row" id="split-mode-row">
+          <label><input type="radio" name="split-mode" value="equal" checked /> Equally</label>
+          <label><input type="radio" name="split-mode" value="amount" /> By amount</label>
+          <label><input type="radio" name="split-mode" value="percent" /> By percentage</label>
+        </div>
+        <div id="expense-split-rows" class="split-rows"></div>
+      </fieldset>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-secondary" data-close-dialog>Cancel</button>
+        <button type="submit" class="btn btn-primary">Save expense</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="modal-expense-detail">
+    <div id="expense-detail-content"></div>
+    <div class="dialog-actions">
+      <button type="button" class="btn btn-primary" data-close-dialog>Close</button>
+    </div>
+  </dialog>
+
+  <dialog id="modal-settings">
+    <form id="form-settings" method="dialog">
+      <h2>Settings</h2>
+
+      <section class="settings-section">
+        <h3>Exchange rates</h3>
+        <p class="hint" id="rates-status"></p>
+        <button type="button" id="btn-refresh-rates" class="btn btn-secondary">Refresh live rates</button>
+        <div id="rates-table" class="rates-table"></div>
+      </section>
+
+      <section class="settings-section">
+        <h3>This group &mdash; members &amp; expenses (CSV)</h3>
+        <p class="hint">Export the current group to CSV, edit it in a spreadsheet, or bring in data from elsewhere. Importing adds to the current group; it never deletes anything.</p>
+        <div class="dialog-actions" style="justify-content:flex-start; gap:.5rem; flex-wrap:wrap;">
+          <button type="button" id="btn-export-members-csv" class="btn btn-secondary">Export members CSV</button>
+          <button type="button" id="btn-export-expenses-csv" class="btn btn-secondary">Export expenses CSV</button>
+          <label class="btn btn-secondary" style="cursor:pointer;">
+            Import members CSV
+            <input type="file" id="import-members-csv" accept=".csv,text/csv" hidden />
+          </label>
+          <label class="btn btn-secondary" style="cursor:pointer;">
+            Import expenses CSV
+            <input type="file" id="import-expenses-csv" accept=".csv,text/csv" hidden />
+          </label>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h3>Your data</h3>
+        <p class="hint">Everything is stored only in this browser (localStorage). Back it up if you care about it.</p>
+        <div class="dialog-actions" style="justify-content:flex-start; gap:.5rem;">
+          <button type="button" id="btn-export-data" class="btn btn-secondary">Export JSON</button>
+          <label class="btn btn-secondary" style="cursor:pointer;">
+            Import JSON
+            <input type="file" id="import-file-input" accept="application/json" hidden />
+          </label>
+          <button type="button" id="btn-reset-data" class="btn btn-danger">Reset all data</button>
+        </div>
+      </section>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-primary" data-close-dialog>Done</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
