@@ -8,6 +8,7 @@ import {
 } from './balances.js';
 import { toCsv, parseCsv } from './csv.js';
 import { createShareOffer, createJoinAnswer, completeShare } from './sync.js';
+import { renderQrCode } from './qr.js';
 
 const state = loadState();
 let currentTab = 'expenses';
@@ -976,7 +977,8 @@ el('btn-sync-start-share').addEventListener('click', async () => {
     el('sync-share-code').value = code;
     el('sync-share-link-box').hidden = false;
     el('sync-share-reply-box').hidden = false;
-    setShareStatus("Share the link or code above. Once they send back a reply code, paste it below and click Connect.");
+    renderQrCode(el('sync-share-qr'), code);
+    setShareStatus("Share the link/code (or let them scan the QR above). Once they send back a reply code, paste or scan it below.");
 
     pc.addEventListener('connectionstatechange', () => {
       if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
@@ -1023,7 +1025,8 @@ el('btn-sync-generate-reply').addEventListener('click', async () => {
     joinPc = pc;
     el('sync-join-reply-code').value = replyCode;
     el('sync-join-reply-box').hidden = false;
-    setJoinStatus('Send the reply code back to them, then wait here for their data.');
+    renderQrCode(el('sync-join-qr'), replyCode);
+    setJoinStatus('Send the reply code back to them (or let them scan the QR above), then wait here for their data.');
 
     pc.addEventListener('connectionstatechange', () => {
       if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
@@ -1085,6 +1088,82 @@ el('btn-sync-discard').addEventListener('click', () => {
   el('sync-import-box').hidden = true;
   setJoinStatus('Discarded.');
 });
+
+// ---------- QR camera scanner (shared by both sync roles) ----------
+
+let scannerStream = null;
+let scannerRafId = null;
+let scannerTarget = null; // 'join' | 'share-reply'
+
+function stopScanner() {
+  if (scannerRafId) { cancelAnimationFrame(scannerRafId); scannerRafId = null; }
+  if (scannerStream) { scannerStream.getTracks().forEach((t) => t.stop()); scannerStream = null; }
+  el('sync-scanner').hidden = true;
+  el('sync-scanner-video').srcObject = null;
+}
+
+function onScanSuccess(text) {
+  const target = scannerTarget;
+  stopScanner();
+  if (target === 'join') {
+    el('sync-join-input').value = text;
+    el('btn-sync-generate-reply').click();
+  } else if (target === 'share-reply') {
+    el('sync-share-reply-input').value = text;
+    el('btn-sync-finish-share').click();
+  }
+}
+
+async function startScanner(target) {
+  if (!window.jsQR) {
+    alert('The QR scanning library failed to load (are you offline?). Use the code/link instead.');
+    return;
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    alert('Camera access is not available here. This needs HTTPS (or localhost) in a browser that supports camera access. Use the code/link instead.');
+    return;
+  }
+  scannerTarget = target;
+  const statusEl = el('sync-scanner-status');
+  el('sync-scanner').hidden = false;
+  statusEl.textContent = 'Requesting camera access...';
+  try {
+    scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  } catch (err) {
+    statusEl.textContent = `Camera access failed: ${err.message}. This needs HTTPS (or localhost) and camera permission.`;
+    return;
+  }
+
+  const video = el('sync-scanner-video');
+  video.srcObject = scannerStream;
+  await video.play();
+  statusEl.textContent = "Point your camera at their QR code...";
+
+  const canvas = el('sync-scanner-canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+  const tick = () => {
+    if (!scannerStream) return;
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const result = window.jsQR(imageData.data, imageData.width, imageData.height);
+      if (result && result.data) {
+        onScanSuccess(result.data);
+        return;
+      }
+    }
+    scannerRafId = requestAnimationFrame(tick);
+  };
+  scannerRafId = requestAnimationFrame(tick);
+}
+
+el('btn-scan-join').addEventListener('click', () => startScanner('join'));
+el('btn-scan-reply').addEventListener('click', () => startScanner('share-reply'));
+el('btn-sync-scanner-cancel').addEventListener('click', stopScanner);
+modalSync.addEventListener('close', stopScanner);
 
 // ---------- Dialog close buttons ----------
 

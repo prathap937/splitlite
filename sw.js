@@ -1,4 +1,8 @@
-const CACHE_NAME = 'splitlite-v1';
+const CACHE_NAME = 'splitlite-v2';
+const CROSS_ORIGIN_CACHEABLE = [
+  'https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.js',
+  'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js',
+];
 const ASSETS = [
   './',
   './index.html',
@@ -6,9 +10,13 @@ const ASSETS = [
   './js/storage.js',
   './js/currency.js',
   './js/balances.js',
+  './js/csv.js',
+  './js/sync.js',
+  './js/qr.js',
   './js/main.js',
   './manifest.webmanifest',
   './icons/icon.svg',
+  ...CROSS_ORIGIN_CACHEABLE,
 ];
 
 self.addEventListener('install', (event) => {
@@ -29,7 +37,9 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  if (url.origin !== location.origin) return; // don't cache cross-origin rate API calls
+  const isSameOrigin = url.origin === location.origin;
+  const isCacheableCrossOrigin = CROSS_ORIGIN_CACHEABLE.includes(event.request.url);
+  if (!isSameOrigin && !isCacheableCrossOrigin) return; // e.g. the live exchange-rate API — always hit network fresh
 
   event.respondWith(
     caches.match(event.request).then((cached) => {

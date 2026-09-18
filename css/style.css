@@ -369,6 +369,34 @@ legend { font-size: 0.8rem; color: var(--text-muted); padding: 0 4px; }
   margin-bottom: 6px;
 }
 
+.qr-box {
+  max-width: 220px;
+  margin: 4px 0 12px;
+  padding: 8px;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.qr-box svg { display: block; width: 100%; height: auto; }
+
+.sync-scanner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.sync-scanner video {
+  width: 100%;
+  max-width: 360px;
+  border-radius: 8px;
+  background: #000;
+}
+
 @media (max-width: 480px) {
   .field-row { flex-direction: column; gap: 0; }
   .balance-name, .spend-name { flex-basis: 80px; }

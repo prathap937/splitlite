@@ -158,16 +158,20 @@
           <input type="text" id="sync-share-link" readonly />
         </label>
         <button type="button" id="btn-copy-share-link" class="btn btn-small btn-secondary">Copy link</button>
-        <p class="hint">If the link is awkward to send, this shorter code works the same way &mdash; they just paste it into the "Join" box on their own copy of this app:</p>
+        <p class="hint">If the link is awkward to send, this shorter code works the same way &mdash; they just paste it into the "Join" box on their own copy of this app, or scan the QR code below with their camera:</p>
         <textarea id="sync-share-code" class="sync-code" readonly rows="2"></textarea>
         <button type="button" id="btn-copy-share-code" class="btn btn-small btn-secondary">Copy code</button>
+        <div id="sync-share-qr" class="qr-box" hidden></div>
       </div>
 
       <div id="sync-share-reply-box" hidden>
-        <label>Once they reply, paste their reply code here
+        <label>Once they reply, paste their reply code here (or scan their reply QR)
           <textarea id="sync-share-reply-input" class="sync-code" rows="2"></textarea>
         </label>
-        <button type="button" id="btn-sync-finish-share" class="btn btn-primary btn-small">Connect</button>
+        <div class="dialog-actions" style="justify-content:flex-start; gap:.5rem;">
+          <button type="button" id="btn-sync-finish-share" class="btn btn-primary btn-small">Connect</button>
+          <button type="button" id="btn-scan-reply" class="btn btn-secondary btn-small">Scan their reply QR</button>
+        </div>
       </div>
 
       <p class="hint" id="sync-share-status"></p>
@@ -176,16 +180,20 @@
 
     <section class="settings-section">
       <h3>Join someone else's share</h3>
-      <label>Paste the sync link or code they sent you
+      <label>Paste the sync link or code they sent you (or scan their QR)
         <textarea id="sync-join-input" class="sync-code" rows="2"></textarea>
       </label>
-      <button type="button" id="btn-sync-generate-reply" class="btn btn-secondary">Generate reply code</button>
+      <div class="dialog-actions" style="justify-content:flex-start; gap:.5rem;">
+        <button type="button" id="btn-sync-generate-reply" class="btn btn-secondary">Generate reply code</button>
+        <button type="button" id="btn-scan-join" class="btn btn-secondary">Scan their share QR</button>
+      </div>
 
       <div id="sync-join-reply-box" hidden>
         <label>Send this back to them
           <textarea id="sync-join-reply-code" class="sync-code" readonly rows="2"></textarea>
         </label>
         <button type="button" id="btn-copy-join-reply" class="btn btn-small btn-secondary">Copy reply code</button>
+        <div id="sync-join-qr" class="qr-box" hidden></div>
       </div>
 
       <p class="hint" id="sync-join-status"></p>
@@ -200,6 +208,13 @@
         </div>
       </div>
     </section>
+
+    <div id="sync-scanner" class="sync-scanner" hidden>
+      <p class="hint" id="sync-scanner-status">Requesting camera access...</p>
+      <video id="sync-scanner-video" playsinline autoplay muted></video>
+      <canvas id="sync-scanner-canvas" hidden></canvas>
+      <button type="button" id="btn-sync-scanner-cancel" class="btn btn-small btn-secondary">Cancel scan</button>
+    </div>
 
     <div class="dialog-actions">
       <button type="button" class="btn btn-primary" data-close-dialog>Close</button>
@@ -253,6 +268,8 @@
     </form>
   </dialog>
 
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
