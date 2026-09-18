@@ -101,7 +101,10 @@ function expensesByDateDesc(group) {
 
 function renderExpenses(group) {
   if (group.expenses.length === 0) {
-    expenseList.innerHTML = '<p class="empty-hint">No expenses yet. Add one to get started.</p>';
+    expenseList.innerHTML = `
+      <p class="empty-hint">No expenses yet. Add one to get started.</p>
+      <button type="button" id="btn-expense-empty-scan-join" class="btn btn-secondary btn-small">Or scan a QR code to import someone's data</button>
+    `;
     return;
   }
   const sorted = expensesByDateDesc(group);
@@ -294,8 +297,14 @@ function populateCurrencySelect(selectEl, selected) {
   selectEl.innerHTML = CURRENCIES.map((c) => `<option value="${c}" ${c === selected ? 'selected' : ''}>${c}</option>`).join('');
 }
 
+function openSyncScanJoin() {
+  modalSync.showModal();
+  startScanner('join');
+}
+
 el('btn-new-group').addEventListener('click', openGroupModal);
 el('btn-empty-new-group').addEventListener('click', openGroupModal);
+el('btn-empty-scan-join').addEventListener('click', openSyncScanJoin);
 
 function openGroupModal() {
   el('group-name').value = '';
@@ -555,6 +564,10 @@ el('form-expense').addEventListener('submit', (e) => {
 });
 
 expenseList.addEventListener('click', (e) => {
+  if (e.target.closest('#btn-expense-empty-scan-join')) {
+    openSyncScanJoin();
+    return;
+  }
   const card = e.target.closest('.expense-card');
   if (card) openExpenseDetail(card.dataset.expenseId);
 });
