@@ -43,7 +43,10 @@
         <p>Create a group and add members to start splitting expenses.</p>
         <div class="empty-state-actions">
           <button id="btn-empty-new-group" class="btn btn-primary">Create your first group</button>
-          <button id="btn-empty-scan-join" class="btn btn-secondary">Or scan a QR code to import someone's data</button>
+          <label class="btn btn-primary">
+            Import a JSON backup
+            <input type="file" id="import-json-empty" accept="application/json" hidden />
+          </label>
         </div>
       </section>
 

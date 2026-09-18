@@ -103,7 +103,12 @@ function renderExpenses(group) {
   if (group.expenses.length === 0) {
     expenseList.innerHTML = `
       <p class="empty-hint">No expenses yet. Add one to get started.</p>
-      <button type="button" id="btn-expense-empty-scan-join" class="btn btn-secondary btn-small">Or scan a QR code to import someone's data</button>
+      <div class="empty-state-actions">
+        <label class="btn btn-primary">
+          Import a JSON backup
+          <input type="file" id="import-json-expense-empty" accept="application/json" hidden />
+        </label>
+      </div>
     `;
     return;
   }
@@ -297,14 +302,8 @@ function populateCurrencySelect(selectEl, selected) {
   selectEl.innerHTML = CURRENCIES.map((c) => `<option value="${c}" ${c === selected ? 'selected' : ''}>${c}</option>`).join('');
 }
 
-function openSyncScanJoin() {
-  modalSync.showModal();
-  startScanner('join');
-}
-
 el('btn-new-group').addEventListener('click', openGroupModal);
 el('btn-empty-new-group').addEventListener('click', openGroupModal);
-el('btn-empty-scan-join').addEventListener('click', openSyncScanJoin);
 
 function openGroupModal() {
   el('group-name').value = '';
@@ -564,10 +563,6 @@ el('form-expense').addEventListener('submit', (e) => {
 });
 
 expenseList.addEventListener('click', (e) => {
-  if (e.target.closest('#btn-expense-empty-scan-join')) {
-    openSyncScanJoin();
-    return;
-  }
   const card = e.target.closest('.expense-card');
   if (card) openExpenseDetail(card.dataset.expenseId);
 });
@@ -747,14 +742,13 @@ el('btn-export-data').addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
-el('import-file-input').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
+async function importFullBackupFile(file) {
   try {
     const text = await file.text();
     const parsed = JSON.parse(text);
     if (!Array.isArray(parsed.groups)) throw new Error('Invalid backup file');
-    if (!confirm('Import will replace your current data. Continue?')) return;
+    const hasExistingData = state.groups.length > 0;
+    if (hasExistingData && !confirm('Import will replace your current data. Continue?')) return;
     Object.assign(state, parsed);
     state.activeGroupId = state.groups[0]?.id || null;
     persist();
@@ -763,9 +757,27 @@ el('import-file-input').addEventListener('change', async (e) => {
   } catch (err) {
     alert('Could not import this file. Make sure it is a SplitLite backup JSON.');
     console.error(err);
-  } finally {
-    e.target.value = '';
   }
+}
+
+el('import-file-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (file) await importFullBackupFile(file);
+  e.target.value = '';
+});
+
+el('import-json-empty').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (file) await importFullBackupFile(file);
+  e.target.value = '';
+});
+
+expenseList.addEventListener('change', async (e) => {
+  const input = e.target.closest('#import-json-expense-empty');
+  if (!input) return;
+  const file = input.files[0];
+  if (file) await importFullBackupFile(file);
+  input.value = '';
 });
 
 el('btn-reset-data').addEventListener('click', () => {
