@@ -1141,7 +1141,13 @@ async function startScanner(target) {
   el('sync-scanner').hidden = false;
   statusEl.textContent = 'Requesting camera access...';
   try {
-    scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    scannerStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'environment',
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
+    });
   } catch (err) {
     statusEl.textContent = `Camera access failed: ${err.message}. This needs HTTPS (or localhost) and camera permission.`;
     return;
@@ -1150,14 +1156,22 @@ async function startScanner(target) {
   const video = el('sync-scanner-video');
   video.srcObject = scannerStream;
   await video.play();
-  statusEl.textContent = "Point your camera at their QR code...";
+  statusEl.textContent = 'Point your camera at their QR code — hold it steady, fill most of the frame, and give it a couple of seconds to focus.';
 
   const canvas = el('sync-scanner-canvas');
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  let frameCount = 0;
 
   const tick = () => {
     if (!scannerStream) return;
-    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    frameCount += 1;
+    // Only decode every 3rd frame — getImageData + jsQR is expensive at 1080p,
+    // and running it at full framerate can starve the video decoder on slower devices.
+    if (frameCount % 3 !== 0) {
+      scannerRafId = requestAnimationFrame(tick);
+      return;
+    }
+    if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);

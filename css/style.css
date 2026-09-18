@@ -377,14 +377,15 @@ legend { font-size: 0.8rem; color: var(--text-muted); padding: 0 4px; }
 }
 
 .qr-box {
-  max-width: 220px;
-  margin: 4px 0 12px;
-  padding: 8px;
+  width: min(440px, 100%);
+  margin: 4px auto 4px;
+  padding: 10px;
   background: #ffffff;
   border-radius: 8px;
   border: 1px solid var(--border);
 }
 .qr-box svg { display: block; width: 100%; height: auto; }
+.qr-box-hint { text-align: center; margin: 0 0 12px; }
 
 .sync-scanner {
   display: flex;
